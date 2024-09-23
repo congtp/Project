@@ -1,0 +1,203 @@
+@startuml
+
+actor User
+participant Main_Process as Main
+participant SEGGER_RTT
+participant GPT_Timer_Interface as GPTIf
+participant GPT_Timer_Instances as GPT
+participant IRQ
+participant NVIC
+participant ISR as GPT_Overflow_ISR
+
+== Thread Mode ==
+User -> Main: Power On Reset\n-----------------\nHardware Reset
+activate Main
+
+Main -> Main : SystemInit()
+loop while (1)
+    Main -> SEGGER_RTT: APP_CHECK_DATA
+    activate SEGGER_RTT
+    SEGGER_RTT --> Main: APP_CHECK_DATA_RESPONSE
+    group alt APP_CHECK_DATA_RESPONSE 
+    else APP_CHECK_DATA_RESPONSE == true
+        Main -> SEGGER_RTT: APP_READ
+        SEGGER_RTT --> Main: APP_READ_RESPONSE
+        group alt APP_READ_RESPONSE
+        else APP_READ_RESPONSE == PERIODIC_MODE_TIMER
+            group alt g_timer_open_state
+            else PWM_MODE == g_timer_open_state
+                Main -> GPTIf: deinit_gpt_timer()
+                activate GPTIf
+                GPTIf -> GPT: R_GPT_Close ()
+                activate GPT
+                GPT --> GPTIf: fsp_err_t
+                deactivate GPT
+                GPTIf --> Main: fsp_err_t
+                
+                deactivate GPTIf
+            else ONE_SHOT_MODE == g_timer_open_state
+                Main -> GPTIf: deinit_gpt_timer()
+                activate GPTIf
+                GPTIf -> GPT: R_GPT_Close ()
+                activate GPT
+                GPT --> GPTIf: fsp_err_t
+                deactivate GPT
+                GPTIf --> Main: fsp_err_t
+                deactivate GPTIf
+            Main -> Main: ProcessInput()
+            activate Main
+
+            Main -> SEGGER_RTT : APP_CHECK_DATA
+
+            Main<--SEGGER_RTT : APP_CHECK_DATA_RESPONSE
+            deactivate Main
+
+            
+            Main -> Main: period = Period_Calculate()
+            group alt period
+            else period == VALID
+                group alt g_timer_open_state
+                else PERIODIC != g_timer_open_state
+                    Main -> GPTIf: init_gpt_timer()
+                    activate GPTIf
+                    GPTIf -> GPT: R_GPT_Open ()
+                    activate GPT
+                    GPT --> GPTIf: fsp_err_t
+                    deactivate GPT
+                    GPTIf --> Main: fsp_err_t
+                    deactivate GPTIf
+                    'Start Timer
+                    Main -> GPTIf: start_gpt_timer()
+                    activate GPTIf
+                    GPTIf -> GPT: R_GPT_Start ()
+                    activate GPT
+                    GPT --> GPTIf: fsp_err_t
+                    deactivate GPT
+                    GPTIf --> Main: fsp_err_t
+                    deactivate GPTIf
+                    group alt fsp_err_t
+                    else FSP_SUCCESS != fsp_err_t
+                        Main -> GPTIf: deinit_gpt_timer()
+                        activate GPTIf
+                        GPTIf -> GPT: R_GPT_Close ()
+                        activate GPT
+                        GPT --> GPTIf: fsp_err_t
+                        deactivate GPT
+                        GPTIf --> Main: fsp_err_t
+                        deactivate GPTIf
+                    
+                    end
+                    Main -> GPT: R_GPT_PeriodSet()
+                    activate GPT
+                    Main <-- GPT: fsp_err_t
+                    deactivate GPT
+                    group alt fsp_err_t
+                    else FSP_SUCCESS != fsp_err_t
+                        Main -> GPTIf: deinit_gpt_timer()
+                        activate GPTIf
+                        GPTIf -> GPT: R_GPT_Close ()
+                        activate GPT
+                        GPT --> GPTIf: fsp_err_t
+                        deactivate GPT
+                        GPTIf --> Main: fsp_err_t
+                        deactivate GPTIf
+                    end
+
+                end
+            end
+            end
+
+        else APP_READ_RESPONSE == PWM_MODE_TIMER
+            group alt g_timer_open_state
+            else PERIODIC_MODE == g_timer_open_state
+                Main -> GPTIf: deinit_gpt_timer()
+                activate GPTIf
+                GPTIf -> GPT: R_GPT_Close ()
+                activate GPT
+                GPT --> GPTIf: fsp_err_t
+                deactivate GPT
+                GPTIf --> Main: fsp_err_t
+                
+                deactivate GPTIf
+            else ONE_SHOT_MODE == g_timer_open_state
+                Main -> GPTIf: deinit_gpt_timer()
+                activate GPTIf
+                GPTIf -> GPT: R_GPT_Close ()
+                activate GPT
+                GPT --> GPTIf: fsp_err_t
+                deactivate GPT
+                GPTIf --> Main: fsp_err_t
+                deactivate GPTIf
+            Main -> Main: ProcessInput()
+            activate Main
+
+            Main -> SEGGER_RTT : APP_CHECK_DATA
+
+            Main<--SEGGER_RTT : APP_CHECK_DATA_RESPONSE
+            deactivate Main
+
+                group alt g_timer_open_state
+                else PWM_MODE != g_timer_open_state
+                    Main -> GPTIf: init_gpt_timer()
+                    activate GPTIf
+                    GPTIf -> GPT: R_GPT_Open ()
+                    activate GPT
+                    GPT --> GPTIf: fsp_err_t
+                    deactivate GPT
+                    GPTIf --> Main: fsp_err_t
+                    deactivate GPTIf
+                    'Start Timer
+                    Main -> GPTIf: start_gpt_timer()
+                    activate GPTIf
+                    GPTIf -> GPT: R_GPT_Start ()
+                    activate GPT
+                    GPT --> GPTIf: fsp_err_t
+                    deactivate GPT
+                    GPTIf --> Main: fsp_err_t
+                    deactivate GPTIf
+                    group alt fsp_err_t
+                    else FSP_SUCCESS != fsp_err_t
+                        Main -> GPTIf: deinit_gpt_timer()
+                        activate GPTIf
+                        GPTIf -> GPT: R_GPT_Close ()
+                        activate GPT
+                        GPT --> GPTIf: fsp_err_t
+                        deactivate GPT
+                        GPTIf --> Main: fsp_err_t
+                        deactivate GPTIf
+                    
+                    end
+                    Main -> GPTIf: set_timer_duty_cycle()
+                    activate GPTIf
+                    GPTIf -> GPT: R_GPT_DutyCycleSet()
+                    activate GPT
+                    GPTIf <-- GPT: fps_err_t
+                    deactivate GPT
+                    Main <-- GPT: fsp_err_t
+                    deactivate GPTIf
+                    group alt fsp_err_t
+                    else FSP_SUCCESS != fsp_err_t
+                        Main -> GPTIf: deinit_gpt_timer()
+                        activate GPTIf
+                        GPTIf -> GPT: R_GPT_Close ()
+                        activate GPT
+                        GPT --> GPTIf: fsp_err_t
+                        deactivate GPT
+                        GPTIf --> Main: fsp_err_t
+                        deactivate GPTIf
+                    end
+                    end
+                end
+        else APP_READ_RESPONSE == ONE_SHOT_MODE_TIMER
+        end
+    else APP_CHECK_DATA_RESPONSE == false
+        Main -> Main: Do Nothing
+    end
+end
+
+
+
+
+
+
+@enduml

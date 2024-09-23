@@ -1,0 +1,178 @@
+@startuml
+
+boundary USER_PC
+participant Main_Process as Main
+participant SEGGER_RTT as SEGGER
+participant USER_Timer_Interface as GPTIf
+boundary Board_RA6M3
+
+
+USER_PC -> Main: Power On Reset\n-----------------\nHardware Reset
+activate Main
+
+group <font color="Blue" size = "14">**loop while true**</font>
+    Main -> SEGGER: APP_CHECK_DATA
+    activate SEGGER
+    USER_PC <-> SEGGER: User choose Mode \n-----------------\n 1/2/3 From Keyboard
+    SEGGER --> Main: APP_CHECK_DATA
+    deactivate SEGGER
+
+    group <font color="Blue" size = "14">**alt timer mode**</font>
+    else <font color="Blue" size = "14">**timer_mode = PERIODIC_MODE_TIMER**</font>
+        group <font color="Blue" size = "14">**alt current gpt mode**</font>
+        else <font color="Blue" size = "14">**PWM_MODE = g_timer_open_state**</font>
+            Main -> GPTIf: deinit_gpt_timer(&g_timer_pwm_ctrl);
+            activate GPTIf
+            Main <-- GPTIf: deinit_gpt_timer()
+            deactivate GPTIf
+        else <font color="Blue" size = "14">**ONE_SHOT_MODE = g_timer_open_state**</font>
+            Main -> GPTIf: deinit_gpt_timer(&g_timer_one_shot_mode_ctrl);
+            activate GPTIf
+            Main <-- GPTIf: deinit_gpt_timer()
+            deactivate GPTIf
+        ' end of current gpt mode 
+        end
+        Main -> SEGGER: process_intput()
+        activate SEGGER
+        USER_PC <- SEGGER: 
+        activate USER_PC
+        note over USER_PC
+            RTT_Viewer:
+            Main Process will be traped here
+            and wait for user input
+        end note
+        USER_PC -> SEGGER: User input the desired time (ms)
+        deactivate USER_PC
+        SEGGER --> Main: process_intput()
+        deactivate SEGGER
+
+        group <font color="Blue" size = "14">**alt current gpt mode**</font>
+        else <font color="Blue" size = "14">**PERIODIC_MODE not = g_timer_open_state**</font>
+            Main -> GPTIf: init_gpt_timer(&g_timer_periodic_ctrl, &g_timer_periodic_cfg, PERIODIC_MODE_TIMER)
+            activate GPTIf
+            Main <-- GPTIf: init_gpt_timer()
+            deactivate GPTIf
+            
+            Main -> GPTIf: start_gpt_timer(&g_timer_periodic_ctrl)
+            activate GPTIf
+            Main <-- GPTIf: start_gpt_timer()
+            
+            
+        ' end of current gpt mode 
+        end
+        Main -> GPTIf: set_timer_period((uint32_t)period_counts)
+        Main <-- GPTIf: set_timer_period()
+        
+        GPTIf -> Board_RA6M3: Pin P100 LOW Level at Compare Match \n---------\n Pin P100 HIGH Level at Cycle End  
+        activate Board_RA6M3
+        note over Board_RA6M3
+            ON/OFF 
+            <font color="red">RED</font> LED
+        end note
+        GPTIf <-- Board_RA6M3:
+        deactivate Board_RA6M3
+        deactivate GPTIf
+
+    else <font color="Blue" size = "14">**timer_mode = PWM_MODE_TIMER**</font>
+        group <font color="Blue" size = "14">**alt current gpt mode**</font>
+        else <font color="Blue" size = "14">**PERIODIC_MODE = g_timer_open_state**</font>
+            Main -> GPTIf: deinit_gpt_timer(&g_timer_periodic_ctrl)
+            activate GPTIf
+            Main <-- GPTIf: deinit_gpt_timer()
+            deactivate GPTIf
+        else <font color="Blue" size = "14">**ONE_SHOT_MODE = g_timer_open_state**</font>
+            Main -> GPTIf: deinit_gpt_timer(&g_timer_one_shot_mode_ctrl)
+            activate GPTIf
+            Main <-- GPTIf: deinit_gpt_timer()
+            deactivate GPTIf
+        ' end of current gpt mode 
+        end
+        Main -> SEGGER: process_intput()
+        activate SEGGER
+        USER_PC <- SEGGER: 
+        activate USER_PC
+        note over USER_PC
+            RTT_Viewer:
+            Main Process will be traped here
+            and wait for user input
+        end note
+        USER_PC -> SEGGER: User input the desired duty cycle (0 - 100%)
+        deactivate USER_PC
+        SEGGER --> Main: process_intput()
+        deactivate SEGGER
+
+        group <font color="Blue" size = "14">**alt current gpt mode**</font>
+        else <font color="Blue" size = "14">**PWM_MODE not = g_timer_open_state**</font>
+            Main -> GPTIf: init_gpt_timer(&g_timer_pwm_ctrl, &g_timer_pwm_cfg, PWM_MODE_TIMER)
+            activate GPTIf
+            Main <-- GPTIf: init_gpt_timer()
+            deactivate GPTIf
+            
+            Main -> GPTIf: start_gpt_timer(&g_timer_pwm_ctrl)
+            activate GPTIf
+            Main <-- GPTIf: start_gpt_timer()
+            
+            
+        ' end of current gpt mode 
+        end
+        Main -> GPTIf: set_timer_duty_cycle((uint8_t)gpt_desired_duty_cycle_percent)
+        Main <-- GPTIf: set_timer_period()
+        
+        GPTIf -> Board_RA6M3: Duty cycle on Pin P100 Change
+        activate Board_RA6M3
+        note over Board_RA6M3
+            Change intensity
+            of <font color="red">RED</font> LED
+        end note
+        GPTIf <-- Board_RA6M3:
+        deactivate Board_RA6M3
+        deactivate GPTIf
+    else <font color="Blue" size = "14">**timer_mode = ONESHOT_MODE_TIMER**</font>
+        group <font color="Blue" size = "14">**alt current gpt mode**</font>
+        else <font color="Blue" size = "14">**PERIODIC_MODE = g_timer_open_state**</font>
+            Main -> GPTIf: deinit_gpt_timer(&g_timer_periodic_ctrl)
+            activate GPTIf
+            Main <-- GPTIf: deinit_gpt_timer()
+            deactivate GPTIf
+        else <font color="Blue" size = "14">**PWM_MODE = g_timer_open_state**</font>
+            Main -> GPTIf: deinit_gpt_timer(&g_timer_pwm_ctrl)
+            activate GPTIf
+            Main <-- GPTIf: deinit_gpt_timer()
+            deactivate GPTIf
+        else <font color="Blue" size = "14">**ONE_SHOT_MODE = g_timer_open_state**</font>
+            Main -> GPTIf: deinit_gpt_timer(&g_timer_one_shot_mode_ctrl)
+            activate GPTIf
+            Main <-- GPTIf: deinit_gpt_timer()
+            deactivate GPTIf
+        
+        ' end of current gpt mode 
+        end
+        
+        Main -> GPTIf: init_gpt_timer(&g_timer_one_shot_mode_ctrl, &g_timer_one_shot_mode_cfg, ONE_SHOT_MODE_TIMER)
+        activate GPTIf
+        Main <-- GPTIf: init_gpt_timer()
+        deactivate GPTIf
+
+        Main -> GPTIf: start_gpt_timer(&g_timer_pwm_ctrl)
+        activate GPTIf
+        GPTIf -> Board_RA6M3: start counting
+        activate Board_RA6M3
+        Main <-- GPTIf: start_gpt_timer()
+        note over Board_RA6M3
+            Timer has reached
+            target time
+        end note
+        GPTIf <-- Board_RA6M3: time expired
+        deactivate Board_RA6M3
+        GPTIf -> Main: user_gpt_one_shot_callback(timer_callback_args_t * p_args)
+        Main -> GPTIf: stop_gpt_timer(&g_timer_one_shot_mode_ctrl)
+        
+        GPTIf --> Main: stop_gpt_timer()
+        deactivate GPTIf
+    ' End of Timer Mode    
+    end 
+' End of while loop
+end
+deactivate Main
+
+@enduml
